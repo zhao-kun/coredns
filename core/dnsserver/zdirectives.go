@@ -44,6 +44,7 @@ var Directives = []string{
 	"route53",
 	"azure",
 	"clouddns",
+	"easemesh",
 	"k8s_external",
 	"kubernetes",
 	"file",
