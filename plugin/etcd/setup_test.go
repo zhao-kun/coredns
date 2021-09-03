@@ -24,7 +24,7 @@ func TestSetupEtcd(t *testing.T) {
 			`etcd`, false, "skydns", []string{"http://localhost:2379"}, "", "", "",
 		},
 		{
-			`etcd {
+			`etcd coredns.local test.local {
 	endpoint http://localhost:2379 http://localhost:3379 http://localhost:4379
 
 }`, false, "skydns", []string{"http://localhost:2379", "http://localhost:3379", "http://localhost:4379"}, "", "", "",
