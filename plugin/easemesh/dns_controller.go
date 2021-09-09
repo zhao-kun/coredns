@@ -129,6 +129,7 @@ func (e *easegressClient) fetchServices(ctx context.Context) ([]*Service, map[st
 	defer cancel()
 	resp, err := getPrefix(timeoutCtx, e.cli, servicePrefix)
 	if err != nil {
+		log.Errorf("fetch %s error %s", servicePrefix, err)
 		return nil, nil
 	}
 	services := []*Service{}
@@ -150,7 +151,6 @@ func (e *easegressClient) fetchServices(ctx context.Context) ([]*Service, map[st
 
 	}
 	return services, serviceMap
-
 }
 
 func getPrefix(ctx context.Context, cli *etcdcv3.Client, prefix string) (map[string]string, error) {

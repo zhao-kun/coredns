@@ -7,12 +7,15 @@ import (
 
 	"github.com/coredns/coredns/plugin"
 	"github.com/coredns/coredns/plugin/etcd/msg"
+	"github.com/coredns/coredns/plugin/pkg/dnsutil"
 	"github.com/coredns/coredns/plugin/pkg/fall"
-	"github.com/coredns/coredns/plugin/pkg/log"
 	"github.com/coredns/coredns/plugin/pkg/upstream"
 	"github.com/coredns/coredns/request"
 	"github.com/miekg/dns"
 )
+
+const loopbackIpv4 = "127.0.0.1"
+const loopbackIpv6 = "::1"
 
 // EaseMesh is client of the easegress
 type EaseMesh struct {
@@ -29,12 +32,41 @@ var _ plugin.ServiceBackend = &EaseMesh{}
 // Services implements the ServiceBackend interface.
 func (e *EaseMesh) Services(ctx context.Context, state request.Request, exact bool, opt plugin.Options) (services []msg.Service, err error) {
 	// TODO
+	// We're looking again at types, which we've already done in ServeDNS, but there are some types k8s just can't answer.
+	switch state.QType() {
+
+	case dns.TypeTXT:
+		// 1 label + zone, label must be "dns-version".
+		t, _ := dnsutil.TrimZone(state.Name(), state.Zone)
+
+		segs := dns.SplitDomainName(t)
+		if len(segs) != 1 {
+			return nil, nil
+		}
+		if segs[0] != "dns-version" {
+			return nil, nil
+		}
+		svc := msg.Service{Text: "1.1.0", TTL: 28800, Key: msg.Path(state.QName(), coredns)}
+		return []msg.Service{svc}, nil
+	}
+
 	services, err = e.Records(ctx, state, exact)
 	if err != nil {
 		return
 	}
 
-	services = msg.Group(services)
+	// SRV for external services is not yet implemented, so remove those records.
+	if state.QType() != dns.TypeSRV {
+		return services, err
+	}
+
+	internal := []msg.Service{}
+	for _, svc := range services {
+		if t, _ := svc.HostType(); t != dns.TypeCNAME {
+			internal = append(internal, svc)
+		}
+	}
+
 	return
 }
 
@@ -58,22 +90,18 @@ func (e *EaseMesh) IsNameError(err error) bool {
 func (e *EaseMesh) Records(ctx context.Context, state request.Request, exact bool) ([]msg.Service, error) {
 	r, err := parseRequest(state.Name(), state.Zone)
 	if err != nil {
-		log.Debugf("invalid request ignored")
 		return nil, errRequestInvalid
 	}
 
 	if r.podOrSvc != svc {
-		log.Debugf("easemesh only process svc, ignore all pod requests")
 		return nil, errPodRequest
 	}
 
 	if r.service == "" {
-		log.Debugf("service name can't be empty")
 		return nil, errKeyNotFound
 	}
 
 	if wildcard(r.service) {
-		log.Debugf("not support wildcard service %s", r.service)
 		return nil, errKeyNotFound
 	}
 
@@ -96,13 +124,21 @@ func (e *EaseMesh) Serial(state request.Request) uint32 {
 
 // MinTTL returns the minimum TTL to be used in the SOA record.
 func (e *EaseMesh) MinTTL(state request.Request) uint32 {
-	return uint32(e.ttl)
+	return e.ttl
 }
 
 func newSidecarService(s []*Service, key string) (results []msg.Service) {
 	for _, i := range s {
+		// First add TypeA
 		ms := msg.Service{
-			Host: "127.0.0.1",
+			Host: loopbackIpv4,
+			Port: i.EgressPort,
+			TTL:  defaultTTL,
+		}
+		results = append(results, ms)
+		// TypeAAA also be needed
+		ms = msg.Service{
+			Host: loopbackIpv6,
 			Port: i.EgressPort,
 			TTL:  defaultTTL,
 		}

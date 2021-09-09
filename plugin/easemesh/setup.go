@@ -9,6 +9,7 @@ import (
 	"github.com/coredns/coredns/core/dnsserver"
 	"github.com/coredns/coredns/plugin"
 	"github.com/coredns/coredns/plugin/pkg/dnsutil"
+	clog "github.com/coredns/coredns/plugin/pkg/log"
 	mwtls "github.com/coredns/coredns/plugin/pkg/tls"
 	"github.com/coredns/coredns/plugin/pkg/upstream"
 )
@@ -18,7 +19,11 @@ const (
 	defaultTTL      = 5
 )
 
-func init() { plugin.Register("easemesh", setup) }
+var pluginName = "easemesh"
+
+var log = clog.NewWithPlugin(pluginName)
+
+func init() { plugin.Register(pluginName, setup) }
 
 // MeshConfig contains the configuration for creating new EaseMesh plugin
 type MeshConfig struct {
@@ -156,5 +161,6 @@ func NewFromConfig(config MeshConfig) (*EaseMesh, error) {
 
 	easemesh.Upstream = upstream.New()
 	easemesh.dnsController = controller
+	easemesh.Zones = config.Zones
 	return &easemesh, nil
 }

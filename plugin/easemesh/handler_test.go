@@ -63,4 +63,11 @@ var dnsTestCases = []test.Case{
 			test.A("svc1.*.svc.cluster.local.  5       IN      A       127.0.0.1"),
 		},
 	},
+	{
+		Qname: "vets-service.spring-petclinic.svc.cluster.local", Qtype: dns.TypeAAAA,
+		Rcode: dns.RcodeSuccess,
+		Answer: []dns.RR{
+			test.AAAA("vets-service.spring-petclinic.svc.cluster.local.	5	IN	AAAA	::1"),
+		},
+	},
 }
